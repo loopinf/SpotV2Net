@@ -15,9 +15,9 @@ from torch.utils.data import random_split
 from torch_geometric.loader import DataLoader
 import torch.nn.functional as F
 from torch_geometric.nn import GATConv
-import matplotlib.pyplot as plt
 import pdb, os
-from torch_geometric.data import Batch
+import yaml
+
 
 class CovarianceTemporalDataset(InMemoryDataset):
     def __init__(self, hdf5_file, root='processed_data/cached_datasets_temporal/', transform=None, pre_transform=None, seq_length=None):
@@ -154,71 +154,136 @@ class GATModel(torch.nn.Module):
 
 if __name__ == '__main__':
     
-    SEQ_LENGTH = 5
+    # Load hyperparam file
+    with open('config/GNN_param.yaml', 'r') as f:
+        p = yaml.safe_load(f)
+    # Define the folder path
+    folder_path = 'output/{}'.format(p['modelname'])
     
+    # Check if the folder exists, and create it if it doesn't
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+    
+    # Save the yaml file to the model folder
+    with open('{}/GNN_param.yaml'.format(folder_path), 'w') as f:
+        yaml.dump(p, f)
+
     # Instantiate the dataset
-    dataset = CovarianceTemporalDataset(hdf5_file='processed_data/covs_mats_30min2_reduced.h5', seq_length=SEQ_LENGTH)
+    dataset = CovarianceTemporalDataset(hdf5_file=p['datafile'], seq_length=p['seq_length'])
     # train-test split data
-    train_size = int(0.8 * len(dataset))
+    train_size = int(p['split_proportion'] * len(dataset))
     test_size = len(dataset) - train_size
     train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
     # Create DataLoaders for train and test datasets
-    batch_size = 32
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=p['batch_size'], shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=p['batch_size'], shuffle=False)
     
     # Instantiate the GATModel
-    model = GATModel(num_features=1, hidden_channels=32, num_heads=4, 
-                     output_edge_channels=1, output_node_channels=1, seq_length=SEQ_LENGTH)
+    model = GATModel(num_features=p['num_features'], 
+                     hidden_channels=p['hidden_channels'], 
+                     num_heads=p['num_heads'], 
+                     output_edge_channels=p['output_edge_channels'], 
+                     output_node_channels=p['output_node_channels'], 
+                     seq_length=p['seq_length'])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     
-    # Set loss function and optimizer
-    criterion = torch.nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    if p['train'] == True:
+        # Set loss function and optimizer
+        criterion = torch.nn.MSELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=p['learning_rate'])
+        
+        # Train the model
+        prev_train_loss = float('inf')
+        for epoch in range(p['num_epochs']):
+            model.train()
+            total_loss = 0
+            for data in tqdm(iterable=train_loader, desc='Training batches...'):
+                data = data.to(device)
+                # Forward pass
+                edge_weights_pred, node_features_pred = model(data)
+                # Compute loss
+                loss_edge_weights = criterion(edge_weights_pred, data.y_edge_weight[::p['seq_length'],:,:].reshape(edge_weights_pred.shape))
+                loss_node_features = criterion(node_features_pred, data.y_x[::p['seq_length'],:,:].reshape(node_features_pred.shape))
+                loss = loss_edge_weights + loss_node_features
+                # Backward pass
+                optimizer.zero_grad()
+                loss.backward()
+                # Optimize
+                optimizer.step()
+                total_loss += loss.item()
+        
+            # Compute average training loss
+            avg_train_loss = total_loss / len(train_loader)
+            
+            # Check if the average training loss improved by the specified tolerance
+            if epoch == 0 or avg_train_loss + p['tolerance'] < prev_train_loss:
+                # Update the previous training loss
+                prev_train_loss = avg_train_loss
     
-    # Train the model
-    num_epochs = 5
-    for epoch in range(num_epochs):
-        model.train()
-        total_loss = 0
-        for data in tqdm(iterable=train_loader, desc='Training batches...'):
-            data = data.to(device)
-            # Forward pass
-            edge_weights_pred, node_features_pred = model(data)
-            # Compute loss
-            loss_edge_weights = criterion(edge_weights_pred, data.y_edge_weight[::SEQ_LENGTH,:,:].reshape(edge_weights_pred.shape))
-            loss_node_features = criterion(node_features_pred, data.y_x[::5,:,:].reshape(node_features_pred.shape))
-            loss = loss_edge_weights + loss_node_features
-            # Backward pass
-            optimizer.zero_grad()
-            loss.backward()
-            # Optimize
-            optimizer.step()
-            total_loss += loss.item()
-    
-        # Compute average training loss
-        avg_train_loss = total_loss / len(train_loader)
-    
+                # Save the model weights
+                save_path = 'output/{}/{}_weights.pth'.format(p['modelname'],p['modelname'])
+                torch.save(model.state_dict(), save_path)
+        
+            # Evaluate on the test set
+            model.eval()
+            test_loss = 0
+        
+            with torch.no_grad():
+                for data in tqdm(iterable=test_loader, desc='Testing batches...'):
+                    data = data.to(device)
+        
+                    # Forward pass
+                    edge_weights_pred, node_features_pred = model(data)
+                    # Compute loss
+                    loss_edge_weights = criterion(edge_weights_pred, data.y_edge_weight[::p['seq_length'],:,:].reshape(edge_weights_pred.shape))
+                    loss_node_features = criterion(node_features_pred, data.y_x[::p['seq_length'],:,:].reshape(node_features_pred.shape))
+                    loss = loss_edge_weights + loss_node_features
+        
+                    test_loss += loss.item()
+        
+            # Compute average test loss
+            avg_test_loss = test_loss / len(test_loader)
+        
+            print(f"Epoch: {epoch+1}/{p['num_epochs']}, Train Loss: {avg_train_loss:.10f}, Test Loss: {avg_test_loss:.10f}")
+        
+    else:
+        
+        
+        # Load saved model weights
+        modelweights = os.path.join(folder_path,'{}_weights.pth'.format(p['modelname']))
+        model.load_state_dict(torch.load(modelweights))
+        # Set loss function and optimizer
+        # criterion = torch.nn.MSELoss()
+        
         # Evaluate on the test set
         model.eval()
-        test_loss = 0
-    
+
         with torch.no_grad():
             for data in tqdm(iterable=test_loader, desc='Testing batches...'):
                 data = data.to(device)
-    
                 # Forward pass
                 edge_weights_pred, node_features_pred = model(data)
-    
-                # Compute loss
-                loss_edge_weights = criterion(edge_weights_pred, data.y_edge_weight[::SEQ_LENGTH,:,:].reshape(edge_weights_pred.shape))
-                loss_node_features = criterion(node_features_pred, data.y_x[::5,:,:].reshape(node_features_pred.shape))
-                loss = loss_edge_weights + loss_node_features
-    
-                test_loss += loss.item()
-    
-        # Compute average test loss
-        avg_test_loss = test_loss / len(test_loader)
-    
-        print(f"Epoch: {epoch+1}/{num_epochs}, Train Loss: {avg_train_loss:.10f}, Test Loss: {avg_test_loss:.10f}")
+                pdb.set_trace()
+                # Initialize the covariance matrix with zeros
+                cov = torch.diag(node_features_pred.reshape(-1,))
+                # Create a mask for the upper triangle of the covariance matrix
+                mask = torch.triu(torch.ones_like(cov), diagonal=1).bool()
+                # Fill the upper triangle of the covariance matrix with the covariances from edge_weights_pred
+                cov[mask] = edge_weights_pred.flatten()
+                # Mirror the upper triangle to the lower triangle to make the matrix symmetric
+                cov = cov + cov.T - torch.diag(cov.diag())
+                # check
+                # cov.equal(cov.t())
+                
+        
+        #         # Compute loss
+        #         loss_edge_weights = criterion(edge_weights_pred, data.y_edge_weight[::p['seq_length'],:,:].reshape(edge_weights_pred.shape))
+        #         loss_node_features = criterion(node_features_pred, data.y_x[::p['seq_length'],:,:].reshape(node_features_pred.shape))
+        #         loss = loss_edge_weights + loss_node_features
+        #         test_loss += loss.item()
+        
+        # # Compute average test loss
+        # avg_test_loss = test_loss / len(test_loader)
+        
+        # print(f"Test Loss: {avg_test_loss:.10f}")

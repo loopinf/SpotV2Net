@@ -3,6 +3,7 @@ rawdata/
 processed_data/
 ESG/
 GNNs/
+output/
 .ipynb_checkpoints/
 *.ipynb
 *.txt

@@ -1,10 +1,11 @@
 # data
 datafile: 'processed_data/covs_mats_30min2_reduced.h5'
 split_proportion: 0.8 # to be modified
+pad_value : -999
 
 
 # model
-train: False
+train: True
 modelname: 'RGNN_PriceCov'
 seq_length: 5
 batch_size: 1

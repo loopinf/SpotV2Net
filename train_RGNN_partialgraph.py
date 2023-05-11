@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Apr  4 15:37:17 2023
+Created on Wed May 10 09:46:28 2023
 
 @author: ab978
 """
+
 
 import torch
 import numpy as np
@@ -19,11 +20,16 @@ import pdb, os
 import yaml
 
 
+# To modify the code to have a graph that is not fully connected, you need to change the edge index of the PyTorch dataset. 
+# In particular, you need to define a new edge index tensor that contains only the edges that you want to keep in the graph.
+
+
 class CovarianceTemporalDataset(InMemoryDataset):
-    def __init__(self, hdf5_file, root='processed_data/cached_datasets_temporal/', transform=None, pre_transform=None, seq_length=None):
+    def __init__(self, hdf5_file, root='processed_data/cached_datasets_temporal_partial/', transform=None, pre_transform=None, seq_length=None, pad_value=-999):
         self.hdf5_file = hdf5_file
         self.root = root
         self.seq_length = seq_length
+        self.pad_value = pad_value
         super(CovarianceTemporalDataset, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
 
@@ -50,17 +56,24 @@ class CovarianceTemporalDataset(InMemoryDataset):
                 for j in range(self.seq_length):
                     cov_matrix = np.array(f[keys[i+j]])
                     next_cov_matrix  = np.array(f[keys[i+j+1]])
-    
+                   
                     # Create the adjacency matrix from the covariance matrix
                     adj_matrix = cov_matrix.copy()
                     np.fill_diagonal(adj_matrix, 0)  # Set the diagonal to zero
     
-                    # Extract only upper triangle of the adjacency matrix (excluding diagonal)
+                    # Create edge_index tensor for a sparse connected graph
+                    sparsity = 0.5 # set sparsity parameter to 0.5
+                    edge_index = torch.tensor(np.argwhere(np.triu(np.ones_like(cov_matrix), k=1)), dtype=torch.long).t().contiguous()
+
+                    # Remove edges to create sparse graph
+                    # rng = np.random.RandomState(42)
+                    keep_mask = np.random.choice([False, True], size=edge_index.shape[1], p=[1 - sparsity, sparsity])
+                    edge_index = edge_index[:, keep_mask]
+    
+                    # Extract only upper triangle of the adjacency matrix (excluding diagonal) for edge weights
                     mask = np.triu(np.ones_like(adj_matrix), k=1) > 0
                     edge_weights = torch.tensor(adj_matrix[mask], dtype=torch.float)
-    
-                    # Create edge_index tensor
-                    edge_index = torch.tensor(np.argwhere(mask), dtype=torch.long).t().contiguous()
+                    edge_weights = edge_weights[keep_mask]
     
                     # Extract the variances (diagonal) as node features
                     node_features = np.diag(cov_matrix)
@@ -70,54 +83,89 @@ class CovarianceTemporalDataset(InMemoryDataset):
                     adj_matrix_next = next_cov_matrix.copy()
                     np.fill_diagonal(adj_matrix_next, 0)  # Set the diagonal to zero
     
-                    # Extract only upper triangle of the next adjacency matrix (excluding diagonal)
+                    # Extract only upper triangle of the next adjacency matrix (excluding diagonal) for edge weights
                     mask = np.triu(np.ones_like(adj_matrix_next), k=1) > 0
-                    y_edge_weight = torch.tensor(adj_matrix_next[mask], dtype=torch.float).view(-1, 1)
-    
-                    # Extract the variances (diagonal) of the next covariance matrix as target node features
-                    y_x = torch.tensor(np.diag(next_cov_matrix), dtype=torch.float).view(-1, 1)
-    
+                    y_edge_weights = torch.tensor(adj_matrix_next[mask], dtype=torch.float).view(-1, 1)
+                    y_edge_weights = y_edge_weights[keep_mask]
+                    
+                    # this is not padded because I need boolean also where there's no connection to mark the link as absent
+                    y_edge_weights_binary = torch.Tensor(keep_mask.astype(int))
+
+                    
                     # Create PyTorch Geometric Data object
-                    data = Data(x=x, edge_index=edge_index, edge_weight=edge_weights,
-                                y_edge_weight=y_edge_weight, y_x=y_x)
+                    data = Data(x=x, edge_index=edge_index, edge_weight=edge_weights, y=y_edge_weights,
+                                y_binary=y_edge_weights_binary)
                     seq_data_list.append(data)
+                    
     
-                # Combine the sequence of Data objects into a single object with the desired format
+                # Combine the sequence of Data objects into a single object with the desired format    
+                max_len = keep_mask.shape[0]
+
                 seq_data = Data(x=torch.stack([d.x for d in seq_data_list], dim=0),
-                                edge_index=torch.stack([d.edge_index for d in seq_data_list], dim=0),
-                                edge_weight=torch.stack([d.edge_weight for d in seq_data_list], dim=0),
-                                y_edge_weight=torch.stack([d.y_edge_weight for d in seq_data_list], dim=0),
-                                y_x=torch.stack([d.y_x for d in seq_data_list], dim=0))
-                
-    
+                                edge_index=fixed_padding([d.edge_index.reshape(-1,2) for d in seq_data_list],max_len,self.pad_value).reshape(self.seq_length,2,-1), 
+                                edge_weight=fixed_padding([d.edge_weight for d in seq_data_list],max_len,self.pad_value).reshape(self.seq_length,-1),
+                                y=fixed_padding([d.y for d in seq_data_list],max_len,self.pad_value).reshape(self.seq_length,-1,1),
+                                y_binary=torch.stack([d.y_binary for d in seq_data_list], dim=0))
+
+
                 data_list.append(seq_data)
-    
+                
+        
+        # I need to pad again
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
 
 
+def fixed_padding(tensor_list, fixed_length, pad_value):
+    # assuming `tensor_list` is a list of tensors with variable dimensions
+    padded_tensors = []
+    
+    for tensor in tensor_list:
+        if tensor.dim() == 1:
+            # if the tensor has a single dimension, reshape it to a tensor with shape [length, 1]
+            tensor = tensor.unsqueeze(1)
+        # get the length of the tensor along the first dimension
+        length = tensor.shape[0]
+        # calculate the amount of padding required
+        pad_length = fixed_length - length
+        # create a tensor with the appropriate shape and the specified padding value
+        pad_tensor = torch.ones((pad_length, tensor.shape[1]), dtype=tensor.dtype, device=tensor.device) * pad_value
+        # concatenate the original tensor with the padding tensor along the first dimension
+        padded_tensor = torch.cat([tensor, pad_tensor], dim=0)
+        # append the padded tensor to the list of padded tensors
+        padded_tensors.append(padded_tensor)
+    # stack the tensors
+    stacked_tensor = torch.stack(padded_tensors, dim=0)
+    # this will result in a tensor of shape [num_tensors, fixed_length, num_features]
+    return stacked_tensor
+
+    
+# to remove padded values
+# padded_indices = sequence_tensor.eq(-999)
+# non_padded_sequence = sequence_tensor[~padded_indices]
 
 
 
 
 class GATModel(torch.nn.Module):
-    def __init__(self, num_features, hidden_channels, num_heads, output_edge_channels, output_node_channels, seq_length):
+    def __init__(self, num_features, hidden_channels, num_heads, output_edge_channels, seq_length):
         super(GATModel, self).__init__()
         self.seq_length = seq_length
         self.gat1 = GATConv(num_features, hidden_channels, heads=num_heads, concat=True, dropout=0.6)
         self.gat2 = GATConv(hidden_channels * num_heads, hidden_channels, heads=num_heads, concat=True, dropout=0.6)
         self.lstm = nn.LSTM(hidden_channels * num_heads, hidden_channels * num_heads, batch_first=True)
         self.edge_weight_predictor = torch.nn.Linear(hidden_channels * num_heads, output_edge_channels)
-        self.node_feature_predictor = torch.nn.Linear(hidden_channels * num_heads, output_node_channels)
+        self.link_classifier = torch.nn.Linear(hidden_channels * num_heads, 2)  # 2 classes for link classification
         # Apply Xavier initialization to the linear layers
         torch.nn.init.xavier_uniform_(self.edge_weight_predictor.weight)
-        torch.nn.init.xavier_uniform_(self.node_feature_predictor.weight)
+        torch.nn.init.xavier_uniform_(self.link_classifier.weight)
 
         
         
     def forward(self, data):
         batches_temporal_embedding = []
         # iterating over batches
+        pdb.set_trace()
         for i in range(len(data)):
             temporal_embedding = []
             x, edge_index, edge_weights = data[i].x, data[i].edge_index, data[i].edge_weight
@@ -144,11 +192,12 @@ class GATModel(torch.nn.Module):
         x = x.reshape(x.shape[0]*x.shape[1],-1)
         
         edge_weights_pred = self.edge_weight_predictor(x[data.edge_index[0][0]] * x[data.edge_index[0][1]])
+        
+        # Link prediction
+        link_logits = self.link_classifier(x[data.edge_index[0]] * x[data.edge_index[1]])
+        link_pred = torch.sigmoid(link_logits)
 
-        # Predict node features for each node separately
-        node_features_pred = self.node_feature_predictor(x)
-
-        return edge_weights_pred, node_features_pred
+        return edge_weights_pred, link_pred
 
     
 
@@ -170,8 +219,8 @@ if __name__ == '__main__':
         yaml.dump(p, f)
 
     # Instantiate the dataset
-    dataset = CovarianceTemporalDataset(hdf5_file=p['datafile'], seq_length=p['seq_length'])
-
+    dataset = CovarianceTemporalDataset(hdf5_file=p['datafile'], seq_length=p['seq_length'], pad_value=p['pad_value'])
+    
     # train-test split data
     train_size = int(p['split_proportion'] * len(dataset))
     test_size = len(dataset) - train_size
@@ -179,13 +228,12 @@ if __name__ == '__main__':
     # Create DataLoaders for train and test datasets
     train_loader = DataLoader(train_dataset, batch_size=p['batch_size'], shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=p['batch_size'], shuffle=False)
-    
+
     # Instantiate the GATModel
     model = GATModel(num_features=p['num_features'], 
                      hidden_channels=p['hidden_channels'], 
                      num_heads=p['num_heads'], 
                      output_edge_channels=p['output_edge_channels'], 
-                     output_node_channels=p['output_node_channels'], 
                      seq_length=p['seq_length'])
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
@@ -223,7 +271,6 @@ if __name__ == '__main__':
             if epoch == 0 or avg_train_loss + p['tolerance'] < prev_train_loss:
                 # Update the previous training loss
                 prev_train_loss = avg_train_loss
-    
                 # Save the model weights
                 save_path = 'output/{}/{}_weights.pth'.format(p['modelname'],p['modelname'])
                 torch.save(model.state_dict(), save_path)

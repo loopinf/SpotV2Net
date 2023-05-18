@@ -1,19 +1,20 @@
 # data
-datafile: 'processed_data/covs_mats_30min2_reduced.h5'
+datafile: 'processed_data/covs_mats_30min_19_22.h5' #_reduced20pct
+root: 'processed_data/cached_covs_mats_30min_19_22'
 split_proportion: 0.8 # to be modified
-pad_value : -999
+
 
 
 # model
 train: True
 modelname: 'RGNN_PriceCov'
-seq_length: 5
-batch_size: 1
+seq_length: 10
+batch_size: 128
 num_features: 1
-hidden_channels: 32
-num_heads: 4
+hidden_channels: 64
+num_heads: 2
 output_edge_channels: 1
 output_node_channels: 1
-learning_rate: 0.001
-num_epochs: 5
+learning_rate: 0.0001
+num_epochs: 25
 tolerance: 1e-5

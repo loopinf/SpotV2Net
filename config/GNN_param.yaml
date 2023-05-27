@@ -1,20 +1,46 @@
 # data
-datafile: 'processed_data/covs_mats_30min_19_22.h5' #_reduced20pct
-root: 'processed_data/cached_covs_mats_30min_19_22'
+datafile: 'processed_data/covs_mats_30min_21_22.h5' #_reduced20pct
+root: 'processed_data/cached_covs_mats_30min_21_22_lagged'
 split_proportion: 0.8 # to be modified
+scale_up: False #1000
+normalize: False
 
-
+# test
+model_to_load: '20230531_RGNN_PCov_test5_36'
+plot_losses: False
+naive_benchmark: True
 
 # model
-train: True
-modelname: 'RGNN_PriceCov'
-seq_length: 10
+seed: 367 #[367]
+modelname: '20230531_RGNN_PCov_seeds'
+modeltype: 'gat' # gat or rnn
+seq_length: 12
 batch_size: 128
-num_features: 1
-hidden_channels: 64
-num_heads: 2
-output_edge_channels: 1
+num_hidden_layers: 1
 output_node_channels: 1
-learning_rate: 0.0001
-num_epochs: 25
-tolerance: 1e-5
+hidden_channels: 100
+num_heads: 1
+concat_heads: True
+activation: 'relu'
+learning_rate: 0.001
+dropout_att: 0.0
+dropout: 0.0
+num_epochs: 50
+tolerance: 1e-9
+# optuna
+n_trials: 50
+hyperparameters:
+  seq_length: [[12,24], 'cat']
+  learning_rate: [[0.001, 0.0001, 0.00001], 'cat']
+  hidden_channels: [[128, 256, 512, 1024], 'cat']
+  num_heads: [[2, 7], 'int']
+  dropout: [[0.0, 0.7, 0.1], 'float']
+  dropout_att: [[0.0, 0.7, 0.1], 'float']
+  activation: [['relu', 'tanh', 'sigmoid'], 'cat']
+  seed: [[1,10000], 'int']
+  batch_size: [[128, 256, 512, 1024], 'cat']
+  concat_heads: [[True, False], 'cat']
+
+grid:
+  - seed
+

@@ -58,55 +58,14 @@ if __name__ == '__main__':
     # Instantiate the dataset
     if p['fully_connected']:
         dataset = CovarianceLaggedDataset(hdf5_file=p['datafile'],root='_'.join([p['root'],str(p['seq_length'])]), seq_length=p['seq_length'])
-        p['num_edge_features'] = p['seq_length']
     else:
-        if p['threshold']:
-            root = '_'.join([p['root'],'sparse','t_{}'.format(p['threshold']),str(p['seq_length'])])
-        else:
-            root = '_'.join([p['root'],'sparse',str(p['seq_length'])])
-        dataset = CovarianceSparseDataset(hdf5_file=p['datafile'],root=root, seq_length=p['seq_length'])
-        p['num_edge_features'] = 1
+        dataset = CovarianceSparseDataset(hdf5_file=p['datafile'],root='_'.join([p['root'],str(p['seq_length'])]), seq_length=p['seq_length'])
     # train-test split data
     train_size = int(p['split_proportion'] * len(dataset))
     train_dataset, test_dataset = dataset[:train_size], dataset[train_size:]
     
 
-    # Create DataLoaders for train and test datasets
-    train_loader = DataLoader(train_dataset, batch_size=p['batch_size'], shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=p['batch_size'], shuffle=False)
-    
-    # Instantiate the model
-    if p['modeltype'] == 'gat':
-        model = GATModel(num_features=p['seq_length'], 
-                         num_edge_features = p['num_edge_features'],
-                         num_heads=p['num_heads'], 
-                         output_node_channels=p['output_node_channels'], 
-                         seq_length=p['seq_length'],
-                         dim_hidden_layers=p['dim_hidden_layers'],
-                         dropout_att = p['dropout_att'],
-                         dropout = p['dropout'],
-                         activation = p['activation'],
-                         concat_heads= p['concat_heads'],
-                         negative_slope=p['negative_slope'],
-                         standardize = p['standardize'])
-    elif p['modeltype'] == 'rnn':
-        model = RecurrentGCN(num_features=p['seq_length'], 
-                         hidden_channels=p['hidden_channels'], 
-                         output_node_channels=p['output_node_channels'], 
-                         dropout = p['dropout'],
-                         activation = p['activation'])
-    
-        
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = model.to(device)
-     
-    # Load saved model weights
-    modelweights = os.path.join(folder_path,'{}_weights_seed_{}.pth'.format(p['modelname'], p['seed']))
-    model.load_state_dict(torch.load(modelweights, map_location=device))
-
-    # Evaluate on the test set
-    model.eval()
-    criterion = torch.nn.MSELoss()
+    pdb.set_trace()
     
     test_loss = 0
     preds = []

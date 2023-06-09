@@ -60,34 +60,68 @@ class RecurrentGCN(torch.nn.Module):
 
 class GATModel(torch.nn.Module):
     def __init__(self, 
-                 num_features, 
-                 hidden_channels, 
+                 num_node_features,
+                 num_edge_features,
                  num_heads, 
                  output_node_channels, 
                  seq_length, 
-                 num_hidden_layers=2, 
+                 dim_hidden_layers=[100], 
                  dropout_att=0.0, 
                  dropout=0.0,
                  activation='relu',
-                 concat_heads=False):
+                 concat_heads=False,
+                 negative_slope=0.2,
+                 standardize = False):
         super(GATModel, self).__init__()
         self.seq_length = seq_length
         self.dropout = dropout
-        self.num_features = num_features
         self.activation = activation
-        first_gat = [GATConv(in_channels=num_features, out_channels=hidden_channels, heads=num_heads,  
-                                    concat=concat_heads, dropout=dropout_att, edge_dim=num_features)]
-                     
-        stacked_gats = [GATConv(in_channels=hidden_channels * num_heads, out_channels=hidden_channels, heads=num_heads, 
-                                    concat=concat_heads, dropout=dropout_att, edge_dim=num_features) for i in range(num_hidden_layers-1)]
+        self.standardize = standardize
         
-        self.gat_layers = nn.ModuleList(first_gat + stacked_gats)
-        if concat_heads:
-            self.linear = torch.nn.Linear(hidden_channels * num_heads, output_node_channels)
+
+        if self.standardize:
+            self.bnorm_node = nn.BatchNorm1d(num_node_features, affine=False)
+            self.bnorm_edge = nn.BatchNorm1d(num_edge_features, affine=False)
+        
+
+        if len(dim_hidden_layers) == 1:
+            first_gat = [GATConv(in_channels=num_node_features, out_channels=dim_hidden_layers[0], heads=num_heads,  
+                                        concat=False, dropout=dropout_att, edge_dim=num_edge_features, negative_slope=negative_slope)]
         else:
-            self.linear = torch.nn.Linear(hidden_channels, output_node_channels)
+            first_gat = [GATConv(in_channels=num_node_features, out_channels=dim_hidden_layers[0], heads=num_heads,  
+                                        concat=concat_heads, dropout=dropout_att, edge_dim=num_edge_features, negative_slope=negative_slope)]
+                     
+        stacked_gats = []
+        
+        for i in range(len(dim_hidden_layers)-1):
+            if i+1 == len(dim_hidden_layers)-1:
+                if concat_heads and num_heads>1:
+                    stacked_gats.append(GATConv(in_channels=dim_hidden_layers[i] * num_heads, 
+                                                out_channels=dim_hidden_layers[i+1], heads=num_heads, 
+                                                concat=False, dropout=dropout_att, edge_dim=num_edge_features, negative_slope=negative_slope))
+                else:
+                    stacked_gats.append(GATConv(in_channels=dim_hidden_layers[i], 
+                                                out_channels=dim_hidden_layers[i+1], heads=num_heads, 
+                                                concat=False, dropout=dropout_att, edge_dim=num_edge_features, negative_slope=negative_slope))
+            else:
+                if concat_heads and num_heads>1:
+                    stacked_gats.append(GATConv(in_channels=dim_hidden_layers[i] * num_heads, 
+                                                out_channels=dim_hidden_layers[i+1], heads=num_heads, 
+                                                concat=concat_heads, dropout=dropout_att, edge_dim=num_edge_features, negative_slope=negative_slope))
+                else:
+                    stacked_gats.append(GATConv(in_channels=dim_hidden_layers[i], 
+                                                out_channels=dim_hidden_layers[i+1], heads=num_heads, 
+                                                concat=concat_heads, dropout=dropout_att, edge_dim=num_edge_features, negative_slope=negative_slope))
+
+        
+
+        self.gat_layers = nn.ModuleList(first_gat + stacked_gats)
+
+
+        self.linear = torch.nn.Linear(dim_hidden_layers[-1], output_node_channels)
         # Apply Xavier initialization to the linear layers
-        torch.nn.init.xavier_uniform_(self.linear.weight)
+        # torch.nn.init.xavier_uniform_(self.linear.weight)
+
         
         if self.activation == 'relu':
             self.a = F.relu
@@ -99,20 +133,21 @@ class GATModel(torch.nn.Module):
             print('Choose an available activation function')
             sys.exit()
 
-        
 
-        
+
     def forward(self, data):
         x, edge_index, edge_attr = (data.x,
                                     data.edge_index,
                                     data.edge_attr)
-        
-        for l in self.gat_layers[:-1]:
+
+        if self.standardize:
+            x = self.bnorm_node(x)
+            edge_attr = self.bnorm_node(edge_attr)
+        for l in self.gat_layers:
             x = l(x, edge_index, edge_attr)
             x = self.a(x)
             if self.dropout:
                 x = F.dropout(x, p=self.dropout, training=self.training)
-        x = self.gat_layers[-1](x, edge_index, edge_attr)
         x = self.linear(x)
 
-        return x.view(-1) # enforce positivity of the output
+        return x.view(-1) 

@@ -44,7 +44,7 @@ def objective(trial):
     train(trial=trial,p=p)
     
     # Load the test loss from the saved file
-    folder_path = 'output/{}_{}/{}'.format(p['modelname'], 'optuna', trial.number)
+    folder_path = 'output/{}_optuna/{}'.format(p['modelname'], trial.number)
     test_losses = np.load('{}/test_losses_seed_{}.npy'.format(folder_path, p['seed']))
     
     # Return the minimum test loss as the optimization objective
@@ -58,8 +58,10 @@ if __name__ == '__main__':
         p = yaml.safe_load(f)
     
     # Optimize the hyperparameters using Optuna
-    study = optuna.create_study(study_name=p['modelname'],direction='minimize')
-    
+    if p['random_sampler']:
+        study = optuna.create_study(study_name=p['modelname'],direction='minimize', sampler=optuna.samplers.RandomSampler())
+    else :
+        study = optuna.create_study(study_name=p['modelname'],direction='minimize')
     
     study.optimize(objective, n_trials=p['n_trials'])  # Adjust the number of trials as needed
     
@@ -71,4 +73,4 @@ if __name__ == '__main__':
         print('{}: {}'.format(key, value))
             
     # Store the study
-    study.trials_dataframe().to_csv('output/{}_{}_{}/study.csv'.format(p['modelname'], p['seq_length'], 'optuna'))
+    study.trials_dataframe().to_csv('output/{}_optuna/study.csv'.format(p['modelname']))

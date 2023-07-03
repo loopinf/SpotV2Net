@@ -8,6 +8,8 @@ output/
 *.ipynb
 *.txt
 *.ipynb
+old_py_files/
+old_mat_files/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

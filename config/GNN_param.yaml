@@ -3,20 +3,21 @@ datafile: 'processed_data/covs_mats_30min2.h5'
 root: 'processed_data/cached_covs_mats_30min2' # this can be modified
 fully_connected: False
 split_proportion: 0.8 # to be modified
-scale_up: False #1000000
-threshold: 0.00001 #False
+scale_up: 1000000
+threshold: 0.00001 #None
 
 
 # test
-model_to_load: '20230608_RGNN_long_optuna' 
+model_to_load: '20230611_RGNN' #'20230608_RGNN_long_optuna' 
 plot_losses: False
 naive_benchmark: False
+by_period: True
 
 # model
 seed: [5154]
 modelname: '20230606_RGNN_PCov_sparse_test'
 modeltype: 'gat' # gat or rnn
-seq_length: 5
+seq_length: 36
 batch_size: 128
 dim_hidden_layers: [500]
 output_node_channels: 1

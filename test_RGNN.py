@@ -64,12 +64,15 @@ if __name__ == '__main__':
             root = '_'.join([p['root'],'sparse','t_{}'.format(p['threshold']),str(p['seq_length'])])
         else:
             root = '_'.join([p['root'],'sparse',str(p['seq_length'])])
-        dataset = CovarianceSparseDataset(hdf5_file=p['datafile'],root=root, seq_length=p['seq_length'])
+        dataset = CovarianceSparseDataset(hdf5_file=p['datafile'],root=root, seq_length=p['seq_length'], threshold=p['threshold'])
         p['num_edge_features'] = 1
     # train-test split data
     train_size = int(p['split_proportion'] * len(dataset))
     train_dataset, test_dataset = dataset[:train_size], dataset[train_size:]
     
+    # TODO remove it
+    p['by_period'] = True
+    # test_dataset = test_dataset[:500]
 
     # Create DataLoaders for train and test datasets
     train_loader = DataLoader(train_dataset, batch_size=p['batch_size'], shuffle=True)
@@ -77,7 +80,7 @@ if __name__ == '__main__':
     
     # Instantiate the model
     if p['modeltype'] == 'gat':
-        model = GATModel(num_features=p['seq_length'], 
+        model = GATModel(num_node_features=p['seq_length'], 
                          num_edge_features = p['num_edge_features'],
                          num_heads=p['num_heads'], 
                          output_node_channels=p['output_node_channels'], 
@@ -182,4 +185,71 @@ if __name__ == '__main__':
         ax2.set_ylabel('Loss Values')
         ax2.set_xlabel('Epochs')
 
+    if p['by_period']:
+        # number of nodes in a graph
+        num_nodes = int(data.ptr[1])
+        
+        num_vectors = len(preds) // num_nodes
+        
+        rmse_list = []
+        for index in tqdm(iterable=range(1, preds.shape[0]//num_nodes + 1), desc='Computing individual RMSE'):
+            
+            start = (index - 1) * num_nodes
+            end = index * num_nodes
+            
+            extracted_pred = preds[start:end]
+            extracted_actual = actual[start:end]
+    
+            rmse = math.sqrt(torch.mean((extracted_pred-extracted_actual)**2))
+            rmse_list.append(rmse)
+            
+        fig,ax = plt.subplots(figsize=(10,8))#columnwidth))
+        sns.displot(rmse_list, bins=50, kde=True)
+        plt.xlabel('RMSE')
+        plt.ylabel('Frequency')
+        
+        lowest_rmse = sorted(range(len(rmse_list)), key=lambda i: rmse_list[i])[:10]
+        print("Indices of the 10 lowest RMSE:", lowest_rmse)
+        
+        # Extract the 10th vector from the concatenated vector
+        for _ in range(10):
+            index = input("Choose the index (or enter 'None' to stop): ")
+            
+            if index.lower() == "none":
+                break
+            
+            try:
+                index = int(index)
+            except ValueError:
+                print("Invalid input. Please enter an integer or 'None'.")
+                continue
+            
+            start = (index - 1) * num_nodes
+            end = index * num_nodes
+            
+            
+            if start >= len(preds) or end >= len(preds):
+                print("Invalid index. This index results in empty tensors.")
+                continue
+            
+            extracted_pred = preds[start:end]
+            extracted_actual = actual[start:end]
+            
+            fig,ax = plt.subplots(figsize=(10,8))#columnwidth))
+            sns.scatterplot(x=extracted_actual.numpy(),y=extracted_pred.numpy(),ax=ax)
+            ax.axline((0, 0), slope=1,color='red', linestyle='--')
+            ax.set_xlabel('True Values')
+            ax.set_ylabel('Predicted Values')
+            ax.set_xlim(-2,5)
+            ax.set_ylim(-2,5)
+            ax.set_title('Period with index {}'.format(index))
+            
+            
+            # Assign labels to each point
+            for i, (x, y) in enumerate(zip(extracted_actual.numpy(), extracted_pred.numpy()), 1):
+                ax.annotate(str(i), (x, y), textcoords="offset points", xytext=(5,5), ha='center', fontsize=8)
                 
+        
+
+
+    

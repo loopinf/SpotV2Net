@@ -52,7 +52,7 @@ def train(seed=None, trial=None, p=None):
             root = '_'.join([p['root'],'sparse','t_{}'.format(p['threshold']),str(p['seq_length'])])
         else:
             root = '_'.join([p['root'],'sparse',str(p['seq_length'])])
-        dataset = CovarianceSparseDataset(hdf5_file=p['datafile'],root=root, seq_length=p['seq_length'])
+        dataset = CovarianceSparseDataset(hdf5_file=p['datafile'],root=root, seq_length=p['seq_length'], threshold=p['threshold'])
         p['num_edge_features'] = 1
     # train-test split data
     train_size = int(p['split_proportion'] * len(dataset))
@@ -115,7 +115,8 @@ def train(seed=None, trial=None, p=None):
                 data.x = data.x * p['scale_up'] 
                 data.edge_attr = data.edge_attr * p['scale_up'] 
                 data.y_x = data.y_x * p['scale_up']
-
+            
+            # pdb.set_trace()
             # Forward pass
             y_x_hat = model(data)
             # Compute loss

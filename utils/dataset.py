@@ -196,10 +196,11 @@ class CovarianceLaggedDataset(InMemoryDataset):
         
         
 class CovarianceSparseDataset(InMemoryDataset):
-    def __init__(self, hdf5_file, root='processed_data/cached_datasets_lagged/', transform=None, pre_transform=None, seq_length=None):
+    def __init__(self, hdf5_file, root='processed_data/cached_datasets_lagged/', transform=None, pre_transform=None, seq_length=None, threshold=None):
         self.hdf5_file = hdf5_file
         self.root = root
         self.seq_length = seq_length
+        self.threshold = threshold
         super(CovarianceSparseDataset, self).__init__(root, transform, pre_transform)
         self.data, self.slices = torch.load(self.processed_paths[0])
         
@@ -240,9 +241,9 @@ class CovarianceSparseDataset(InMemoryDataset):
                     np.fill_diagonal(adj_matrix, 0)  # Set the diagonal to zero
     
                     # Extract only upper triangle of the adjacency matrix (excluding diagonal)
-                    # pdb.set_trace()
                     upper_triangle = np.triu(np.ones_like(adj_matrix), k=1)
-                    mask = upper_triangle.astype(bool) & (adj_matrix > 0)
+                    # mask = upper_triangle.astype(bool) & (adj_matrix > 0)
+                    mask = upper_triangle.astype(bool) & ((adj_matrix > self.threshold) | (adj_matrix < -self.threshold))
 
                     # Create edge_index tensor
                     edge_index = torch.tensor(np.argwhere(mask), dtype=torch.long).t().contiguous()  
@@ -259,16 +260,18 @@ class CovarianceSparseDataset(InMemoryDataset):
                     np.fill_diagonal(adj_matrix_next, 0)  # Set the diagonal to zero
     
                     # Extract only upper triangle of the next adjacency matrix (excluding diagonal)
-                    mask = np.triu(np.ones_like(adj_matrix_next), k=1) > 0
-                    y_edge = torch.tensor(adj_matrix_next[mask], dtype=torch.float)
+                    # mask = np.triu(np.ones_like(adj_matrix_next), k=1) > 0
+                    # y_edge = torch.tensor(adj_matrix_next[mask], dtype=torch.float)
     
                     # Extract the variances (diagonal) of the next covariance matrix as target node features
                     y_x = torch.tensor(np.diag(next_cov_matrix), dtype=torch.float)
                     
                     
                     # Create PyTorch Geometric Data object
-                    data = Data(x=x, edge_index=edge_index, edge_attr=edge_attr,
-                                y_edge=y_edge, y_x=y_x)
+                    data = Data(x=x, edge_index=edge_index, 
+                                edge_attr=edge_attr,
+                                # y_edge=y_edge, 
+                                y_x=y_x)
                     
                     seq_data_list.append(data)
                     
@@ -278,7 +281,7 @@ class CovarianceSparseDataset(InMemoryDataset):
                 seq_data = Data(x=torch.stack([d.x for d in seq_data_list], dim=1),
                                 edge_index=seq_data_list[-1].edge_index,
                                 edge_attr=seq_data_list[-1].edge_attr,
-                                y_edge=seq_data_list[-1].y_edge,
+                                # y_edge=seq_data_list[-1].y_edge,
                                 y_x=seq_data_list[-1].y_x)
                 
                 data_list.append(seq_data)

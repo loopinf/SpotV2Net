@@ -64,7 +64,6 @@ class GATModel(torch.nn.Module):
                  num_edge_features,
                  num_heads, 
                  output_node_channels, 
-                 seq_length, 
                  dim_hidden_layers=[100], 
                  dropout_att=0.0, 
                  dropout=0.0,
@@ -73,7 +72,6 @@ class GATModel(torch.nn.Module):
                  negative_slope=0.2,
                  standardize = False):
         super(GATModel, self).__init__()
-        self.seq_length = seq_length
         self.dropout = dropout
         self.activation = activation
         self.standardize = standardize
@@ -83,7 +81,7 @@ class GATModel(torch.nn.Module):
             self.bnorm_node = nn.BatchNorm1d(num_node_features, affine=False)
             self.bnorm_edge = nn.BatchNorm1d(num_edge_features, affine=False)
         
-
+        
         if len(dim_hidden_layers) == 1:
             first_gat = [GATConv(in_channels=num_node_features, out_channels=dim_hidden_layers[0], heads=num_heads,  
                                         concat=False, dropout=dropout_att, edge_dim=num_edge_features, negative_slope=negative_slope)]

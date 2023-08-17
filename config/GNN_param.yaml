@@ -1,7 +1,8 @@
 # data
-datafile: 'processed_data/covs_mats_30min2.h5' 
-root: 'processed_data/cached_covs_mats_30min2' # this can be modified
-fully_connected: False
+volfile: 'processed_data/vols_mats_taq.h5' 
+volvolfile: 'processed_data/vols_mats_taq.h5' 
+root: 'processed_data/cached_vols_mats_taq' # this can be modified
+fully_connected: True
 split_proportion: 0.8 # to be modified
 scale_up: 1000000
 threshold: 0.00001 #None
@@ -17,7 +18,7 @@ by_period: True
 seed: [5154]
 modelname: '20230606_RGNN_PCov_sparse_test'
 modeltype: 'gat' # gat or rnn
-seq_length: 36
+seq_length: 4
 batch_size: 128
 dim_hidden_layers: [500]
 output_node_channels: 1
@@ -30,7 +31,7 @@ negative_slope: 0.2
 dropout_att: 0.0
 dropout: 0.1
 standardize: False
-num_epochs: 20
+num_epochs: 3
 tolerance: 1e-9
 # optuna
 n_trials: 50

@@ -57,8 +57,7 @@ if __name__ == '__main__':
 
     # Instantiate the dataset
     if p['fully_connected']:
-        dataset = CovarianceLaggedDataset(hdf5_file=p['datafile'],root='_'.join([p['root'],str(p['seq_length'])]), seq_length=p['seq_length'])
-        p['num_edge_features'] = p['seq_length']
+        dataset = CovarianceLaggedDataset(hdf5_file1=p['volfile'], hdf5_file2=p['volvolfile'],root='_'.join([p['root'],str(p['seq_length'])]), seq_length=p['seq_length'])
     else:
         if p['threshold']:
             root = '_'.join([p['root'],'sparse','t_{}'.format(p['threshold']),str(p['seq_length'])])
@@ -78,13 +77,16 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=p['batch_size'], shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=p['batch_size'], shuffle=False)
     
+    # select dimensions from data
+    NODE_FEATURES = dataset[0].x.shape[1]
+    EDGE_FEATURES = dataset[0].edge_attr.shape[1]
+
     # Instantiate the model
     if p['modeltype'] == 'gat':
-        model = GATModel(num_node_features=p['seq_length'], 
-                         num_edge_features = p['num_edge_features'],
+        model = GATModel(num_node_features=NODE_FEATURES, 
+                         num_edge_features = EDGE_FEATURES,
                          num_heads=p['num_heads'], 
                          output_node_channels=p['output_node_channels'], 
-                         seq_length=p['seq_length'],
                          dim_hidden_layers=p['dim_hidden_layers'],
                          dropout_att = p['dropout_att'],
                          dropout = p['dropout'],

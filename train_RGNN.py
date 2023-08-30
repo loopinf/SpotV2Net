@@ -15,7 +15,10 @@ import math
 import sys
 import torch.multiprocessing as mp
 from utils.models import GATModel, RecurrentGCN
-from utils.dataset import CovarianceTemporalDataset,CovarianceLaggedDataset,CovarianceSparseDataset
+from utils.dataset import (CovarianceTemporalDataset,
+                            CovarianceLaggedDataset,
+                            CovarianceSparseDataset,
+                            CovarianceLaggedMultiOutputDataset)
 from typing import Optional, Dict, Union
 
 def train(seed: Optional[int] = None,
@@ -54,7 +57,10 @@ def train(seed: Optional[int] = None,
 
     # Instantiate the dataset
     if p['fully_connected']:
-        dataset = CovarianceLaggedDataset(hdf5_file1=p['volfile'], hdf5_file2=p['volvolfile'],root='_'.join([p['root'],str(p['seq_length'])]), seq_length=p['seq_length'])
+        if p['output_node_channels'] == 1:
+            dataset = CovarianceLaggedDataset(hdf5_file1=p['volfile'], hdf5_file2=p['volvolfile'],root='_'.join([p['root'],str(p['seq_length'])]), seq_length=p['seq_length'])
+        else:
+            dataset = CovarianceLaggedMultiOutputDataset(hdf5_file1=p['volfile'], hdf5_file2=p['volvolfile'],root='_'.join([p['root'],str(p['seq_length']),'moutput']), seq_length=p['seq_length'], future_steps=p['output_node_channels'])
     else:
         if p['threshold']:
             root = '_'.join([p['root'],'sparse','t_{}'.format(p['threshold']),str(p['seq_length'])])
@@ -98,6 +104,7 @@ def train(seed: Optional[int] = None,
         
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
+
     
   
     # Set loss function and optimizer
@@ -124,7 +131,7 @@ def train(seed: Optional[int] = None,
                 data.x = data.x * p['scale_up'] 
                 data.edge_attr = data.edge_attr * p['scale_up'] 
                 data.y_x = data.y_x * p['scale_up']
-            
+
             # Forward pass
             y_x_hat = model(data)
             # Compute loss

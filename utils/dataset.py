@@ -102,9 +102,9 @@ class CovarianceTemporalDataset(InMemoryDataset):
 
                 data_list.append(seq_data)
 
-
+        
         data, slices = self.collate(data_list)
-        torch.save((data, slices), self.processed_paths[0])
+        torch.save((data, slices), os.path.join(os.getcwd(),self.processed_paths[0]))
         
 class CovarianceLSTMDataset():
     def __init__(self, hdf5_file1, hdf5_file2, root='processed_data/cached_datasets_lagged/', seq_length=None):
@@ -146,7 +146,6 @@ class CovarianceLSTMDataset():
 
                 x_matrix = torch.stack([data[0] for data in seq_data_list], dim=0).numpy()
                 y_x_vector = seq_data_list[-1][-1].numpy()
-    
                 x_matrices.append(x_matrix)
                 y_x_vectors.append(y_x_vector)
 
@@ -154,8 +153,8 @@ class CovarianceLSTMDataset():
         os.makedirs(self.root, exist_ok=True)
     
         # Saving the entire dataset as .npy files in the specified directory
-        np.save(os.path.join(self.root, 'x_matrices.npy'), x_matrices)
-        np.save(os.path.join(self.root, 'y_x_vectors.npy'), y_x_vectors)
+        np.save(os.path.join(self.root, 'x_matrices.npy'), x_matrices[8357:])
+        np.save(os.path.join(self.root, 'y_x_vectors.npy'), y_x_vectors[8357:])
        
         
 class CovarianceLaggedDataset(InMemoryDataset):
@@ -208,7 +207,7 @@ class CovarianceLaggedDataset(InMemoryDataset):
                     covol_matrix = np.array(f2[keys[i+j]])
                     next_covol_matrix  = np.array(f2[keys[i+j+1]])
                     assert int(keys[i+j]) + 1 == int(keys[i+j+1]), 'The labeling process is not considering consecutive matrices in file2'
-                    
+
                     # Create the adjacency matrix from the covariance matrix
                     adj_matrix = covol_matrix.copy()
                     np.fill_diagonal(adj_matrix, 0)  # Set the diagonal to zero
@@ -217,8 +216,15 @@ class CovarianceLaggedDataset(InMemoryDataset):
                     mask = np.triu(np.ones_like(adj_matrix), k=1) > 0
 
                     # Create edge_index tensor
-                    edge_index = torch.tensor(np.argwhere(mask), dtype=torch.long).t().contiguous()  
+                    # edge_index = torch.tensor(np.argwhere(mask), dtype=torch.long).t().contiguous()  
                     
+                    # Create edge_index tensor for upper triangle
+                    edge_index_upper = torch.tensor(np.argwhere(mask), dtype=torch.long).t().contiguous()
+                    # Create edge_index tensor for lower triangle (transpose of upper)
+                    edge_index_lower = edge_index_upper[[1, 0], :]
+                    # Combine both to get full edge_index
+                    edge_index = torch.cat([edge_index_upper, edge_index_lower], dim=1)
+
                     # edge_attr = torch.tensor(adj_matrix[mask], dtype=torch.float)
                     # Extract the variances (diagonal) as a separate tensor
                     variances = torch.tensor(np.diag(covol_matrix), dtype=torch.float)
@@ -230,10 +236,12 @@ class CovarianceLaggedDataset(InMemoryDataset):
                     target_variances = variances[target_indices]
                     # Create the original edge attributes (covariances)
                     covariances = torch.tensor(adj_matrix[mask], dtype=torch.float)
+                    # Duplicate the covariances for the lower triangle
+                    covariances = torch.cat([covariances, covariances])
                     # Concatenate the covariances with the source and target variances
                     edge_attr = torch.stack([covariances, source_variances, target_variances], dim=1)
 
-                    
+
                     
                     # Extract the variances (diagonal) as node features
                     # node_features = np.diag(cov_matrix)
@@ -262,7 +270,8 @@ class CovarianceLaggedDataset(InMemoryDataset):
                                 y_x=y_x)
                     
                     seq_data_list.append(data)
-                    pdb.set_trace()
+
+
                     
                 
                 # Combine the sequence of Data objects into a single object with the desired format
@@ -274,8 +283,10 @@ class CovarianceLaggedDataset(InMemoryDataset):
                 data_list.append(seq_data)
 
 
-        data, slices = self.collate(data_list)
-        torch.save((data, slices), self.processed_paths[0])
+
+        #int(9286 - 9286*.1) is 8357
+        data, slices = self.collate(data_list[8357:]) # to get a stationary dataset 8357
+        torch.save((data, slices), os.path.join(os.getcwd(),self.processed_paths[0]))
 
 
 
@@ -331,18 +342,41 @@ class CovarianceLaggedMultiOutputDataset(InMemoryDataset):
                     adj_matrix = covol_matrix.copy()
                     np.fill_diagonal(adj_matrix, 0)  # Set the diagonal to zero
     
-                    # Create edge_index tensor
+                    # # Create edge_index tensor
                     mask = np.triu(np.ones_like(adj_matrix), k=1) > 0
-                    edge_index = torch.tensor(np.argwhere(mask), dtype=torch.long).t().contiguous()
+                    # edge_index = torch.tensor(np.argwhere(mask), dtype=torch.long).t().contiguous()
     
+                    # # Extract the variances (diagonal) as a separate tensor
+                    # variances = torch.tensor(np.diag(covol_matrix), dtype=torch.float)
+                    # source_indices = edge_index[0]
+                    # target_indices = edge_index[1]
+                    # source_variances = variances[source_indices]
+                    # target_variances = variances[target_indices]
+                    # covariances = torch.tensor(adj_matrix[mask], dtype=torch.float)
+                    # edge_attr = torch.stack([covariances, source_variances, target_variances], dim=1)
+                    # Create edge_index tensor for upper triangle
+                    edge_index_upper = torch.tensor(np.argwhere(mask), dtype=torch.long).t().contiguous()
+                    # Create edge_index tensor for lower triangle (transpose of upper)
+                    edge_index_lower = edge_index_upper[[1, 0], :]
+                    # Combine both to get full edge_index
+                    edge_index = torch.cat([edge_index_upper, edge_index_lower], dim=1)
+
+                    # edge_attr = torch.tensor(adj_matrix[mask], dtype=torch.float)
                     # Extract the variances (diagonal) as a separate tensor
                     variances = torch.tensor(np.diag(covol_matrix), dtype=torch.float)
+                    # Get the source and target indices from the edge_index
                     source_indices = edge_index[0]
                     target_indices = edge_index[1]
+                    # Extract the variances for the source and target nodes
                     source_variances = variances[source_indices]
                     target_variances = variances[target_indices]
+                    # Create the original edge attributes (covariances)
                     covariances = torch.tensor(adj_matrix[mask], dtype=torch.float)
+                    # Duplicate the covariances for the lower triangle
+                    covariances = torch.cat([covariances, covariances])
+                    # Concatenate the covariances with the source and target variances
                     edge_attr = torch.stack([covariances, source_variances, target_variances], dim=1)
+                    
     
                     x = torch.tensor(cov_matrix, dtype=torch.float)
     
@@ -372,9 +406,10 @@ class CovarianceLaggedMultiOutputDataset(InMemoryDataset):
     
                 data_list.append(seq_data)
 
+
     
-        data, slices = self.collate(data_list)
-        torch.save((data, slices), self.processed_paths[0])
+        data, slices = self.collate(data_list[8357:]) # to get a stationary dataset
+        torch.save((data, slices), os.path.join(os.getcwd(),self.processed_paths[0]))
 
 
         
@@ -475,7 +510,17 @@ class CovarianceSparseDataset(InMemoryDataset):
         
         
         
-        
+def check_reverse_edges_exist(edge_index):
+    edge_index_t = edge_index.t().contiguous()
+    
+    # Convert to set for faster lookup
+    edge_set = set(map(tuple, edge_index_t.tolist()))
+
+    for edge in edge_set:
+        if edge[::-1] not in edge_set:
+            return False
+            
+    return True
         
         
         

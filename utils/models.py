@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GATConv,GATv2Conv
-from torch_geometric_temporal.nn.recurrent import DCRNN,A3TGCN
+# from torch_geometric_temporal.nn.recurrent import DCRNN,A3TGCN
 import sys, pdb
 
 
@@ -80,6 +80,7 @@ class GATModel(torch.nn.Module):
         if self.standardize:
             self.bnorm_node = nn.BatchNorm1d(num_node_features, affine=False)
             self.bnorm_edge = nn.BatchNorm1d(num_edge_features, affine=False)
+
         
         
         if len(dim_hidden_layers) == 1:
@@ -140,7 +141,7 @@ class GATModel(torch.nn.Module):
 
         if self.standardize:
             x = self.bnorm_node(x)
-            edge_attr = self.bnorm_node(edge_attr)
+            edge_attr = self.bnorm_edge(edge_attr)
         for l in self.gat_layers:
             x = l(x, edge_index, edge_attr)
             x = self.a(x)

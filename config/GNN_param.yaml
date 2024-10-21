@@ -1,27 +1,28 @@
 # data
-volfile: 'processed_data/vols_mats_taq.h5' 
-volvolfile: 'processed_data/vols_mats_taq.h5' 
-root: 'processed_data/cached_vols_mats_taq' # this can be modified
+volfile: 'processed_data/vols_mats_taq_standardized.h5' 
+volvolfile: 'processed_data/volvols_mats_taq_standardized.h5' 
+root: 'processed_data/vols_mats_taq_standardized_test' # this can be modified
 fully_connected: True
 split_proportion: 0.8 # to be modified
-scale_up: 1000000
+scale_up: null #1000000
 threshold: 0.00001 #None
 
 
 # test
-model_to_load: '20230818_RGNN_optuna' #'20230608_RGNN_long_optuna' 
+model_to_load: '20240428_RGNN_std_optuna' #'20240526_RGNN_std_optuna' #'20240428_RGNN_std_optuna' #'20240428_RGNN_std_optuna' 
 plot_losses: True
 naive_benchmark: True
 by_period: True
+by_company: True
 
 # model
 seed: [5154]
-modelname: '20230828_multioutput_test'
+modelname: '20240525_RGNN_std_optuna'
 modeltype: 'gat' # gat or rnn
-seq_length: 36
+seq_length: 42 #42
 batch_size: 128
 dim_hidden_layers: [500]
-output_node_channels: 14
+output_node_channels: 1 #14
 num_heads: 6
 concat_heads: True
 activation: 'relu'

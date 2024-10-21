@@ -58,9 +58,15 @@ def train(seed: Optional[int] = None,
     # Instantiate the dataset
     if p['fully_connected']:
         if p['output_node_channels'] == 1:
-            dataset = CovarianceLaggedDataset(hdf5_file1=p['volfile'], hdf5_file2=p['volvolfile'],root='_'.join([p['root'],str(p['seq_length'])]), seq_length=p['seq_length'])
+            dataset = CovarianceLaggedDataset(hdf5_file1=os.path.join(os.getcwd(),p['volfile']), 
+                                              hdf5_file2=os.path.join(os.getcwd(),p['volvolfile']),
+                                              root='_'.join([p['root'],str(p['seq_length'])]), 
+                                              seq_length=p['seq_length'])
         else:
-            dataset = CovarianceLaggedMultiOutputDataset(hdf5_file1=p['volfile'], hdf5_file2=p['volvolfile'],root='_'.join([p['root'],str(p['seq_length']),'moutput']), seq_length=p['seq_length'], future_steps=p['output_node_channels'])
+            dataset = CovarianceLaggedMultiOutputDataset(hdf5_file1=os.path.join(os.getcwd(),p['volfile']),
+                                                         hdf5_file2=os.path.join(os.getcwd(),p['volvolfile']),
+                                                         root='_'.join([p['root'],str(p['seq_length']),'moutput']), 
+                                                         seq_length=p['seq_length'], future_steps=p['output_node_channels'])
     else:
         if p['threshold']:
             root = '_'.join([p['root'],'sparse','t_{}'.format(p['threshold']),str(p['seq_length'])])
@@ -68,6 +74,7 @@ def train(seed: Optional[int] = None,
             root = '_'.join([p['root'],'sparse',str(p['seq_length'])])
         dataset = CovarianceSparseDataset(hdf5_file=p['datafile'],root=root, seq_length=p['seq_length'], threshold=p['threshold'])
         p['num_edge_features'] = 1
+    pdb.set_trace()
     # train-test split data
     train_size = int(p['split_proportion'] * len(dataset))
     train_dataset, test_dataset = dataset[:train_size], dataset[train_size:]
@@ -136,6 +143,7 @@ def train(seed: Optional[int] = None,
             y_x_hat = model(data)
             # Compute loss
             y_x = data.y_x
+
             loss = criterion(y_x_hat, y_x)
             # Backward pass
             optimizer.zero_grad()

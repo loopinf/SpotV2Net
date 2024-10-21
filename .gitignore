@@ -4,12 +4,23 @@ processed_data/
 ESG/
 GNNs/
 output/
+epftoolbox/
+figs/
+predictions/
+matlab_files/
 .ipynb_checkpoints/
 *.ipynb
 *.txt
 *.ipynb
 old_py_files/
 old_mat_files/
+.RData
+.Rhistory
+*.m
+*.R
+*.csv
+*.zip
+*.sh
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

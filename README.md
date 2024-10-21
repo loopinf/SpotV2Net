@@ -32,12 +32,12 @@ The files are numbered to indicate the sequence in which they should be executed
 
 1. **First and Second Scripts**:
    - Start by running `1_downsample_TAQ_data.py` followed by `2_organize_prices_as_tables.py` in sequence. These scripts process the tick-by-tick data for the 30 DJIA constituents over a 3-year period.
-   - The scripts filter data for NYSE during market hours and resample it to the daily level, storing the output in the folder `rawdata/taq/by_comp/`. This folder will contain 30 files, one for each company, named in the format `{COMPANY_NAME}_20_23`. An empty file is provided to illustrate the expected structure.
+   - The scripts filter data for NYSE during market hours and resample it to the daily level, storing the output in the folder `rawdata/taq/by_comp/`. This folder will contain 30 files, one for each company, named in the format `{COMPANY_NAME}_20_23`. An example file is provided to illustrate the expected structure.
    - After organizing the prices into tables, you will need to use the *Fourier-Malliavin Volatility (FMVol) MATLAB library* referenced in the paper *Sanfelici, S., & Toscano, G. (2024)*, available [here](https://it.mathworks.com/matlabcentral/fileexchange/72999-fsda-flexible-statistics-data-analysis-toolbox).
    - The MATLAB package allows you to estimate univariate and multivariate volatilities and volatilities of volatilities. The results will be saved into four structured folders:
      - `processed_data/vol/` - Univariate volatilities (30 files, one per company).
      - `processed_data/covol/` - Multivariate co-volatilities (435 files, one for each entry in a 30x30 upper triangular matrix).
-     - `processed_data/vol_of_vol/` - Univariate volatility of volatilities.
+     - `processed_data/vol_of_vol/` - Univariate volatility of volatilities (30 files, one per company).
      - `processed_data/covol_of_vol/` - Multivariate co-volatility of volatilities (similar to the covolatility folder, 435 files).
 
 2. **Third Script**:
@@ -53,6 +53,8 @@ The files are numbered to indicate the sequence in which they should be executed
      - `5_train_SpotV2Net_optuna.py` performs hyperparameter optimization on `SpotV2Net` using `Optuna`.
    - The configuration for these training processes is controlled by the YAML file in the `config/` folder. If running the `Optuna` version of `SpotV2Net`, the choice of the hyperparameter grid (specified below line 40) becomes important. For a single run, select specific hyperparameters above line 40.
    - The YAML file also specifies which data in H5 format (produced by `3_create_matrix_dataset.py`) to use for training.
+   - The train scripts for `SpotV2Net` will also generate the graph-structured dataset, which may take at least 5 minutes the first time. Once generated, the dataset will be cached, making it instantaneous to reload from the second time onwards. For more information about this caching mechanism, see the [PyTorch Geometric documentation](https://pytorch-geometric.readthedocs.io/en/latest/) to understand how caching works.
+
 
 5. **Sixth Script**:
    - `6_results.ipynb` is a Jupyter notebook that performs several tasks essential for generating the results presented in the paper:

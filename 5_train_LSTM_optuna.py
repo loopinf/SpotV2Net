@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
 import optuna
-import yaml, os
+import os
 
 class MultivariateLSTM(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, output_size, dropout):

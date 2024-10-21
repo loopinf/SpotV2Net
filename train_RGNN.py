@@ -15,8 +15,7 @@ import math
 import sys
 import torch.multiprocessing as mp
 from utils.models import GATModel, RecurrentGCN
-from utils.dataset import (CovarianceTemporalDataset,
-                            CovarianceLaggedDataset,
+from utils.dataset import (CovarianceLaggedDataset,
                             CovarianceSparseDataset,
                             CovarianceLaggedMultiOutputDataset)
 from typing import Optional, Dict, Union

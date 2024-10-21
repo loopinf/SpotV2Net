@@ -21,6 +21,12 @@ old_mat_files/
 *.zip
 *.sh
 
+
+!rawdata/
+!rawdata/**
+!processed_data/
+!processed_data/**
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

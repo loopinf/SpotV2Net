@@ -4,12 +4,12 @@ processed_data/
 ESG/
 GNNs/
 output/
+nb_files/
 epftoolbox/
 figs/
 predictions/
 matlab_files/
 .ipynb_checkpoints/
-*.ipynb
 *.txt
 old_py_files/
 old_mat_files/

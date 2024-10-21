@@ -87,3 +87,4 @@ The required packages and their versions for running the code are listed below:
 - `torch`: 2.2.2
 - `torch_geometric`: 2.3.0
 - `tqdm`: 4.66.2
+- `statsmodels`: 0.13.5

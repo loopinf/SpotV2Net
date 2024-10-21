@@ -1,6 +1,6 @@
 # SpotV2Net
 
-This repository supports the paper titled **"SpotV2Net: Multivariate Intraday Spot Volatility Forecasting via Vol-of-Vol-Informed Graph Attention Networks"**, authored by **Alessio Brini** and **Giacomo Toscano**. The paper is published in the *International Journal of Forecasting*.
+This repository supports the paper titled **"SpotV2Net: Multivariate Intraday Spot Volatility Forecasting via Vol-of-Vol-Informed Graph Attention Networks"**, authored by **Alessio Brini** and **Giacomo Toscano**. 
 
 ## Table of Contents
 
@@ -14,6 +14,8 @@ This repository supports the paper titled **"SpotV2Net: Multivariate Intraday Sp
 The files in this repository are numbered in the order they should be executed. Below is the structure of the repository:
 
 - `config/` - Configuration files.
+- `rawdata/` - Data folder with example of data structure before preprocessing.
+- `processed_data/` - Data folder with example of data structure after preprocessing.
 - `utils/` - Utility functions for the following scripts.
 - `1_downsample_TAQ_data.py` - First script to downsample TAQ data.
 - `2_organize_prices_as_tables.py` - Organize prices into tables.
@@ -32,7 +34,7 @@ The files are numbered to indicate the sequence in which they should be executed
    - Start by running `1_downsample_TAQ_data.py` followed by `2_organize_prices_as_tables.py` in sequence. These scripts process the tick-by-tick data for the 30 DJIA constituents over a 3-year period.
    - The scripts filter data for NYSE during market hours and resample it to the daily level, storing the output in the folder `rawdata/taq/by_comp/`. This folder will contain 30 files, one for each company, named in the format `{COMPANY_NAME}_20_23`. An empty file is provided to illustrate the expected structure.
    - After organizing the prices into tables, you will need to use the *Fourier-Malliavin Volatility (FMVol) MATLAB library* referenced in the paper *Sanfelici, S., & Toscano, G. (2024)*, available [here](https://it.mathworks.com/matlabcentral/fileexchange/72999-fsda-flexible-statistics-data-analysis-toolbox).
-   - The MATLAB package allows you to estimate univariate volatilities, multivariate volatilities, and co-volatilities. The results will be saved into four structured folders:
+   - The MATLAB package allows you to estimate univariate and multivariate volatilities and volatilities of volatilities. The results will be saved into four structured folders:
      - `processed_data/vol/` - Univariate volatilities (30 files, one per company).
      - `processed_data/covol/` - Multivariate co-volatilities (435 files, one for each entry in a 30x30 upper triangular matrix).
      - `processed_data/vol_of_vol/` - Univariate volatility of volatilities.

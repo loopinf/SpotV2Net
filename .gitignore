@@ -1,6 +1,6 @@
 # my dirs to ignore
-rawdata/
-processed_data/
+rawdata_orig/
+processed_data_orig/
 ESG/
 GNNs/
 output/

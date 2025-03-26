@@ -7,6 +7,10 @@ split_proportion: 0.8 # to be modified
 scale_up: null #1000000
 threshold: 0.00001 #None
 
+# Add these parameters
+forecast_horizon: 12  # 12 5-minute intervals = 1 hour
+lookback_window: 24   # Use 2 hours of data to forecast
+model_name: SpotV2Net_1hour  # New model name
 
 # test
 model_to_load: '20240428_RGNN_std_optuna' #'20240526_RGNN_std_optuna' #'20240428_RGNN_std_optuna' #'20240428_RGNN_std_optuna' 

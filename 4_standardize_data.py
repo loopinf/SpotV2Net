@@ -87,3 +87,15 @@ mean_std_df = pd.DataFrame({
 
 # Save the DataFrame to a CSV file
 mean_std_df.to_csv(mean_std_csv_path, index=False)
+
+# When splitting data into train/validation/test
+# Make sure to account for the 1-hour horizon
+
+# If there's code like:
+train_data = data[:train_cutoff]
+val_data = data[train_cutoff:val_cutoff]
+
+# Change to:
+forecast_horizon = 12  # 1 hour in 5-min intervals
+train_data = data[:train_cutoff-forecast_horizon]  # Adjust for horizon
+val_data = data[train_cutoff-forecast_horizon:val_cutoff-forecast_horizon]

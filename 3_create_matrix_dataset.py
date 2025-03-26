@@ -89,49 +89,140 @@ def are_keys_ordered_as_numbers(dictionary):
             return False
     return True
 
-if __name__=='__main__':
+def calc_vol(prices):
+    # Replace daily volatility calculation with hourly
+    log_returns = np.log(prices / prices.shift(1)).fillna(0)
     
+    # For 1-hour window (12 5-min bars)
+    hourly_window = 12
+    
+    # Calculate realized volatility (hourly)
+    vol = log_returns.rolling(window=hourly_window).std() * np.sqrt(hourly_window)
+    
+    # Create 1-hour ahead targets (shift by 12 bars)
+    targets = vol.shift(-12)
+    
+    return vol, targets
+
+# Add this function after the existing calc_vol function
+def create_hourly_indices(start_date, end_date):
+    """Create proper time indices for hourly forecasting
+    
+    Args:
+        start_date: Starting date in 'YYYY-MM-DD' format
+        end_date: Ending date in 'YYYY-MM-DD' format
+        
+    Returns:
+        DatetimeIndex with hourly timestamps during market hours
+    """
+    # Assuming market hours 9:30-16:00
+    business_days = pd.date_range(start=start_date, end=end_date, freq='B')
+    
+    hourly_indices = []
+    for day in business_days:
+        # For each hour in the trading day
+        for hour in range(9, 16):
+            minute = 30 if hour == 9 else 0
+            
+            if hour < 16 or (hour == 16 and minute == 0):  # Trading hours only
+                hourly_indices.append(pd.Timestamp(
+                    year=day.year, month=day.month, day=day.day,
+                    hour=hour, minute=minute
+                ))
+    
+    return pd.DatetimeIndex(hourly_indices)
+
+# Add this function to process your 5-minute data
+def process_5min_data(df_5min, start_date, end_date):
+    """Process 5-minute dataframe to create volatility and vol-of-vol data
+    
+    Args:
+        df_5min: DataFrame with 5-minute price data (rows=timestamps, columns=symbols)
+        start_date: Start date for analysis
+        end_date: End date for analysis
+        
+    Returns:
+        Processed volatility and volatility-of-volatility data
+    """
+    # Make sure the dataframe has a proper datetime index
+    if not isinstance(df_5min.index, pd.DatetimeIndex):
+        df_5min.index = pd.to_datetime(df_5min.index)
+    
+    # Get list of symbols
+    symbols = df_5min.columns.tolist()
+    
+    # Calculate volatility and 1-hour ahead targets using existing function
+    vol_df, targets_df = calc_vol(df_5min)
+    
+    # Create directories if they don't exist
+    os.makedirs('processed_data/vol', exist_ok=True)
+    os.makedirs('processed_data/covol', exist_ok=True)
+    os.makedirs('processed_data/vol_of_vol', exist_ok=True)
+    os.makedirs('processed_data/covol_of_vol', exist_ok=True)
+    
+    # Save individual volatility files
+    for symbol in symbols:
+        vol_df[symbol].to_csv(f'processed_data/vol/{symbol}.csv', header=False)
+    
+    # Calculate and save covolatility for each pair
+    for i, symbol1 in enumerate(symbols):
+        for j, symbol2 in enumerate(symbols):
+            if i < j:  # Upper triangle
+                log_returns1 = np.log(df_5min[symbol1] / df_5min[symbol1].shift(1)).fillna(0)
+                log_returns2 = np.log(df_5min[symbol2] / df_5min[symbol2].shift(1)).fillna(0)
+                
+                # 12 bars = 1 hour
+                covol = log_returns1.rolling(window=12).cov(log_returns2) * np.sqrt(12)
+                covol.to_csv(f'processed_data/covol/{symbol1}_{symbol2}.csv', header=False)
+    
+    # Calculate vol-of-vol
+    vol_of_vol_df = vol_df.pct_change().rolling(window=12).std() * np.sqrt(12)
+    
+    # Save individual vol-of-vol files
+    for symbol in symbols:
+        vol_of_vol_df[symbol].to_csv(f'processed_data/vol_of_vol/{symbol}.csv', header=False)
+    
+    # Calculate and save covol-of-vol for each pair
+    for i, symbol1 in enumerate(symbols):
+        for j, symbol2 in enumerate(symbols):
+            if i < j:  # Upper triangle
+                vol_returns1 = vol_df[symbol1].pct_change().fillna(0)
+                vol_returns2 = vol_df[symbol2].pct_change().fillna(0)
+                
+                covol_of_vol = vol_returns1.rolling(window=12).cov(vol_returns2) * np.sqrt(12)
+                covol_of_vol.to_csv(f'processed_data/covol_of_vol/{symbol1}_{symbol2}.csv', header=False)
+    
+    return vol_df, vol_of_vol_df
+
+# Then modify the main execution block to use your 5-minute data
+if __name__=='__main__':
+    # Uncomment these lines when ready to process your data
+    # Load your 5-minute dataframe
+    # df_5min = pd.read_csv('your_5min_data.csv', index_col=0, parse_dates=True)
+    # process_5min_data(df_5min, start_date='2020-01-01', end_date='2022-12-31')
+    
+    # Then continue with the existing code
     vol = generate_matrices(source='price')
     assert all(int(list(vol.keys())[i]) <= int(list(vol.keys())[i + 1]) for i in range(len(list(vol.keys())) - 1))
 
     volvol = generate_matrices(source='vol')
     assert all(int(list(volvol.keys())[i]) <= int(list(volvol.keys())[i + 1]) for i in range(len(list(volvol.keys())) - 1))
     
-
     # align observation
     vol = {k: v for k, v in sorted(vol.items(), key=lambda x: int(x[0]))[:len(volvol)]}
 
-
     # Save the covariance matrices in an HDF5 file
     with h5py.File("processed_data/vols_mats_taq.h5", "w") as f:
-    # with h5py.File("processed_data/vols_mats_taq_202306_09.h5", "w") as f:
         for key, value in vol.items():
-            # Create a dataset with the same name as the key and store the value
             f.create_dataset(str(key), data=value, dtype=np.float64)
+            
     # Save the covariance matrices in an HDF5 file
     with h5py.File("processed_data/volvols_mats_taq.h5", "w") as f:
-    # with h5py.File("processed_data/volvols_mats_taq_202306_09.h5", "w") as f:
         for key, value in volvol.items():
-            # Create a dataset with the same name as the key and store the value
             f.create_dataset(str(key), data=value, dtype=np.float64)
-
-# Code left here for further check
-# # Load back the data
-# # Open the HDF5 file for reading
-# with h5py.File("processed_data/covs_mats_30min2.h5", 'r') as f:
-#     # Create an empty dictionary to store the loaded data
-#     data_dict_loaded = {}
-    
-#     # Loop through each dataset in the file and add it to the dictionary
-#     for key in f.keys():
-#         data_dict_loaded[int(key)] = np.array(f[key])
-        
-        
-# # Assume data_dict is the dictionary containing the arrays
-# is_symmetric = {}
-
-# # Loop through each array in the dictionary
-# for key, arr in hist_cov_mat_numpy.items():
-#     # Check if the array is diagonal by comparing it with its diagonal elements
-#     if not np.allclose(arr, arr.T):
-#         print(key, 'Not symm')
+            
+    # Save the targets for 1-hour ahead forecasting
+    # Uncomment when processing your data
+    # with h5py.File("processed_data/targets_1hour.h5", "w") as f:
+    #     # Create dataset for targets
+    #     pass

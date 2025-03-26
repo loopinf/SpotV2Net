@@ -549,3 +549,29 @@ def check_reverse_edges_exist(edge_index):
 #             modified_edge_attr[i] = fixed_value
 #     # go back
 #     # modified_edge_attr[modified_edge_attr!=-999]
+
+class VolatilityDataset(Dataset):
+    def __init__(self, features, targets, lookback_window=24):
+        """
+        Args:
+            features: Historical features
+            targets: 1-hour ahead targets
+            lookback_window: Number of 5-min intervals to use (default: 24 = 2 hours)
+        """
+        self.features = features
+        self.targets = targets
+        self.lookback_window = lookback_window
+        
+    def __len__(self):
+        # Adjust for the lookback window (no need to account for horizon here
+        # as targets should already be shifted in the data prep stage)
+        return len(self.features) - self.lookback_window
+        
+    def __getitem__(self, idx):
+        # Input: use lookback_window historical points
+        X = self.features[idx:idx+self.lookback_window]
+        
+        # Target: 1-hour ahead volatility (already shifted in data prep)
+        y = self.targets[idx+self.lookback_window-1]
+        
+        return X, y

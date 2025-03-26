@@ -54,6 +54,14 @@ def train(seed: Optional[int] = None,
     np.random.seed(p['seed'])
     torch.cuda.manual_seed_all(p['seed'])
 
+    # Load config
+    with open('config/GNN_param.yaml') as f:
+        config = yaml.safe_load(f)
+
+    # Use the horizon and lookback parameters
+    forecast_horizon = config.get('forecast_horizon', 12)  # Default to 1-hour (12 intervals)
+    lookback_window = config.get('lookback_window', 24)  # Default to 2-hours (24 intervals)
+
     # Instantiate the dataset
     if p['fully_connected']:
         if p['output_node_channels'] == 1:
@@ -187,6 +195,8 @@ def train(seed: Optional[int] = None,
             torch.save(model.state_dict(), save_path)
         
         print(f"Epoch: {epoch+1}/{p['num_epochs']}, Train Loss: {avg_train_loss:.10f}, Test Loss: {avg_test_loss:.10f}, Train RMSE: {avg_train_rmse:.10f}, Test RMSE: {avg_test_rmse:.10f}")
+        # Update evaluation metrics to report 1-hour forecast performance
+        print(f"1-Hour Forecast Results: MAE={mae:.4f}, RMSE={rmse:.4f}")
    
     # save losses
     np.save('{}/train_losses_seed_{}.npy'.format(folder_path, p['seed']), np.array(train_losses))
@@ -209,4 +219,4 @@ if __name__ == '__main__':
     else:
         # Run the `train` function once with a single seed that is specified in the config file
         train(seed=seeds[0])
-            
+
